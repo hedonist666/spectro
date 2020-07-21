@@ -2,11 +2,32 @@
 #include <cstdio>
 #include <cstring>
 #include <cstdint>
+#include <filesystem>
+
+
+enum class Compression {
+    CBR = 0,
+    XING,
+    VBRI
+};
+
 struct Mp3 {
     std::FILE* f;
+    size_t fsize;
     char* marker;
     size_t length = 0;
+    uint32_t frame = 0;
+    const char* mpeg;
+    const char* layer;
+    int bitrate;
+    int sampling_rate;
+    uint8_t padding_bit;
+    const char* channel_mode;
+    Compression compType;
+    size_t frameCount;
+
     Mp3(const char*);
+    size_t trackLength();
     ~Mp3();
 };
 
@@ -25,6 +46,8 @@ namespace frameData {
     T copyright = 28;
     T original = 29;
     T accent = 30; 
+    T last_bit = 31;
+    T finish = 32;
     const char* MPEG[] = 
         {"MPEG-2.5", "not used", "MPEG-2", "MPEG-1"};
     const char* Layer[] =
@@ -41,6 +64,10 @@ namespace frameData {
          {11025, 12000, 8000}};
     const char* channel_mode[] =
         {"Stereo", "Joint stereo", "Dual channel", "Mono"};
+    int samples_per_frame[][3] = 
+        {{384, 1152, 1152},
+         {384, 1152, 576},
+         {384, 1152, 576}};
 };
 
 namespace ID3v2 {
@@ -65,4 +92,4 @@ namespace ID3v1 {
 };
 
 #define DEBUG(x) cout << #x << ": "<< x << endl;
-#define BIT(x, n) ((x & (1 << n)) ? 1 : 0)
+#define BIT(x, n) (((x) & (1 << (n))) ? 1 : 0)

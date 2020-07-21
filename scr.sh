@@ -1,3 +1,3 @@
 #!/bin/bash
 
-g++ -g sound.cxx && ./a.out 
+g++ -g -std=c++17 sound.cxx && ./a.out 
