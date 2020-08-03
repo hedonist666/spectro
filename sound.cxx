@@ -2,7 +2,7 @@
 
 int main() {
     using namespace std;
-    Mp3 track("./materials/sound.mp3");
+    Mp3 track("./materials/ball.mp3");
     cout << track.trackLength();
 }
 
