@@ -1,8 +1,12 @@
 #include <iostream>
+#include <vector>
+#include <string>
 #include <cstdio>
 #include <cstring>
 #include <cstdint>
 #include <filesystem>
+#include <fstream>
+#include <bitset>
 
 
 enum class Compression {
@@ -11,27 +15,40 @@ enum class Compression {
     VBRI
 };
 
-struct Mp3 {
-    std::FILE* f;
-    size_t fsize;
-    char* marker;
-    size_t length = 0;
-    uint32_t frame = 0;
-    const char* mpeg;
-    const char* layer;
-    int bitrate;
-    int sampling_rate;
-    uint8_t padding_bit;
-    const char* channel_mode;
-    Compression compType;
-    size_t frameCount;
+enum class ChannelMode {
+    Mono = 0,
+    Stereo,
+    DualChannel,
+    JointStereo
+};
 
+struct FrameHeader {
+    //std::vector<char> mpeg;
+    //std::vector<char> layer;
+    std::string mpeg;
+    std::string layer;
+    uint32_t frame;
+    size_t bitrate;
+    size_t sampling_rate;
+    uint8_t padding_bit;
+    ChannelMode channel_mode;
+    size_t frameCount;
+    FrameHeader(std::ifstream&);
+};
+
+
+struct Mp3 {
+    size_t fsize;
+    size_t tagLen;
+    std::ifstream f;
+    FrameHeader* fh;
+    Compression compType;
     Mp3(const char*);
     size_t trackLength();
     ~Mp3();
 };
 
-namespace frameData {
+namespace fH {
     using namespace std;
     using T = size_t; //SHIT!!! THATS'S NOT BYTES, THATS BITS!!!!
     T marker = 0;
@@ -62,8 +79,9 @@ namespace frameData {
         {{44100, 48000, 32000},
          {22050, 24000, 16000},
          {11025, 12000, 8000}};
-    const char* channel_mode[] =
-        {"Stereo", "Joint stereo", "Dual channel", "Mono"};
+   ChannelMode channel_mode[] =
+        {ChannelMode::Stereo, ChannelMode::JointStereo, 
+            ChannelMode::DualChannel, ChannelMode::Mono};
     int samples_per_frame[][3] = 
         {{384, 1152, 1152},
          {384, 1152, 576},
