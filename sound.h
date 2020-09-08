@@ -31,6 +31,7 @@ enum class BlockFlag {
     MixedBlocks 
 };
 
+
 BlockFlag toBlockFlag(bool mixedFlag, size_t blockType);
 
 struct BitStream {

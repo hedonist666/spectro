@@ -133,6 +133,7 @@ BitStream::BitStream(std::istream& is) : is{is} { }
 inline size_t BitStream::inc() {
     return (++i) == 8 ? (i = 0, ++y) : 0;
 }
+
 size_t BitStream::getBits(size_t n) {
     size_t res{};
     size_t idx{1};
