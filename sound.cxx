@@ -55,6 +55,11 @@ SideInfo::SideInfo(std::istream& f, FrameHeader& header) {
     }
 }
 
+inline bool validateTable(size_t n) {
+    if (n == 4 || n == 14) return false;
+    return true;
+}
+
 SideData::SideData(BitStream& bs, FrameHeader& header) {
     using namespace std;
     auto part23         = bs.getBits(12);
@@ -102,24 +107,24 @@ SideData::SideData(BitStream& bs, FrameHeader& header) {
         r1len = min(bv2 - r0len, r2bound - r0len);
         r2len = bv2 - (r0len + r1len);
     }
-    auto preflg = bs.getBits(1);
+    auto preflag = bs.getBits(1);
     auto scalefacbit = bs.getBits(1);
     auto scalefacscale = scalefacbit;
     auto count1table = bs.getBits(1);
-/*
-    let huffdata  = MP3HuffmanData bigvalues (r0len, r1len, r2len)
-                                   (table0, table1, table2) count1table
-        scaledata = MP3ScaleData globalgain scalelengths
-                                 (subgain0, subgain1, subgain2)
-                                 scalefacscale preflag
-        valid = if (validateTable table0) && 
-                   (validateTable table1) &&
-                   (if flag then True else validateTable table2) 
-                then True else False
-    return $ if valid then Just (MP3SideData huffdata scaledata part23 
-                                             blocktype blockflag)
-                      else Nothing
-  */
+    HuffmanData huffdata {bigvalues, make_tuple(r0len, r1len, r2len),
+        make_tuple(table0, table1, table2), count1table};
+    ScaleData scaledata {globalgain, make_tuple(scalelengths[0], scalelengths[1]), make_tuple(subgain0, subgain1, subgain2),
+        scalefacscale, preflag};
+    if (validateTable(table0) && validateTable(table1) && (flag || validateTable(table2))) {
+       sideHuffman = new HuffmanData(move(huffdata));
+       sideScalefactor = new ScaleData(move(scaledata));
+       sidePart23Length = part23;
+       sideBlocktype = blocktype;
+       sideBlockflag = blockflag;
+    }
+    else {
+        throw "SideInfo::SideInfo()";
+    }
 }
 
 SideData::SideData() { }

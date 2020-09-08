@@ -61,6 +61,7 @@ struct HuffmanData {
     size_t bigVal;
     std::tuple<size_t, size_t, size_t> region_len;
     std::tuple<size_t, size_t, size_t> table;
+    size_t count1table;
 };
 
 struct ScaleData {
@@ -176,6 +177,7 @@ const size_t tfreq32000[] ={0,4,8,12,16,20,24,30, 36,44,54,66,82,102,126,156, 19
 
 double mp3FloatRep1(size_t);
 double mp3FloatRep2(size_t);
+inline bool validateTable(size_t);
 
 std::ostream& operator<<(std::ostream& os, ChannelMode& cm);
 bool operator==(std::vector<char>& v, const char* s); 
