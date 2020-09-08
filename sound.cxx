@@ -6,6 +6,165 @@ int main() {
     cout << track.trackLength();
 }
 
+const size_t* tableScaleBandBoundary(size_t n) {
+    switch (n) {
+        case (44100):
+            return tfreq44100;
+        case (48000):
+            return tfreq48000;
+        case (32000):
+            return tfreq32000;
+        default:
+            throw "...";
+    }              
+}                  
+
+double mp3FloatRep1(size_t n) {
+    return pow(2.0, 0.25 * (n - 210));
+} 
+double mp3FloatRep2(size_t n) {
+    return pow(2.0, 0.25 * (-n * 8));
+} 
+
+BlockFlag toBlockFlag(bool mixedFlag, size_t blockType) {
+    if (mixedFlag) return BlockFlag::MixedBlocks;
+    if (blockType == 2) return BlockFlag::ShortBlocks;
+    return BlockFlag::LongBlocks;
+}
+
+SideInfo::SideInfo(std::istream& f, FrameHeader& header) {
+    using namespace std;
+    BitStream bs {f};
+    if (header.mono()) {
+        auto dataptr     = bs.getBits(9);
+        auto privateBit  = bs.getBits(5); 
+        scfsi            = bs.getBits(4); 
+        auto granule0ch0 = SideData(bs, header);
+        auto granule1ch0 = SideData(bs, header);
+        granules = make_tuple(granule0ch0, granule1ch0);
+    }
+    else {
+        auto dataptr     = bs.getBits(9); 
+        auto privateBit  = bs.getBits(3); 
+        scfsi            = bs.getBits(8); 
+        auto granule0ch0 = SideData(bs, header);
+        auto granule1ch0 = SideData(bs, header);
+        auto granule0ch1 = SideData(bs, header);
+        auto granule1ch1 = SideData(bs, header);
+        granules = make_tuple(granule0ch0, granule1ch0, granule0ch1, granule1ch1);
+    }
+}
+
+SideData::SideData(BitStream& bs, FrameHeader& header) {
+    using namespace std;
+    auto part23         = bs.getBits(12);
+    auto bigvalues      = bs.getBits(9);
+    auto globalgainb    = bs.getBits(8);
+    auto globalgain     = mp3FloatRep1(globalgainb);
+    auto scalelengths   = tableSlen[bs.getBits(4)];
+    auto flag           = bs.getBits(1);
+    auto blocktype      = bs.getBits(flag ? 2 : 0);
+    auto mixed          = bs.getBits(flag ? 1 : 0);
+    auto blockflag      = toBlockFlag(mixed, blocktype);
+    auto table0         = bs.getBits(5);
+    auto table1         = bs.getBits(5);
+    auto table2         = bs.getBits(flag ? 0 : 5);
+    auto subgain0b      = bs.getBits(flag ? 3 : 0);
+    auto subgain1b      = bs.getBits(flag ? 3 : 0);
+    auto subgain2b      = bs.getBits(flag ? 3 : 0);
+    auto subgain0       = mp3FloatRep2(subgain0b);
+    auto subgain1       = mp3FloatRep2(subgain1b);
+    auto subgain2       = mp3FloatRep2(subgain2b);
+    auto regionabits         = bs.getBits(flag ? 0 : 4);
+    auto regionbbits         = bs.getBits(flag ? 0 : 3);
+    size_t racnt{}, rbcnt{};
+    if (flag) {
+        if (blocktype == 2) racnt = 8;
+        else racnt = 7;
+        rbcnt = 20 - racnt;
+    }
+    else {
+        racnt = regionabits;
+        rbcnt = regionbbits;
+    }
+    auto sbTable   = tableScaleBandBoundary(header.sampling_rate);
+    auto r1bound   = sbTable[racnt + 1];
+    auto r2bound   = sbTable[racnt + 1 + rbcnt + 1];
+    auto bv2       = bigvalues*2;
+    size_t r0len{}, r1len{}, r2len{};
+    if (blocktype == 2) {
+        r0len = min(bv2, size_t{36}); 
+        r1len = min(bv2 - r0len, size_t{540});
+        r2len = 0;
+    }
+    else {
+        r0len = min(bv2, r1bound);
+        r1len = min(bv2 - r0len, r2bound - r0len);
+        r2len = bv2 - (r0len + r1len);
+    }
+    auto preflg = bs.getBits(1);
+    auto scalefacbit = bs.getBits(1);
+    auto scalefacscale = scalefacbit;
+    auto count1table = bs.getBits(1);
+/*
+    let huffdata  = MP3HuffmanData bigvalues (r0len, r1len, r2len)
+                                   (table0, table1, table2) count1table
+        scaledata = MP3ScaleData globalgain scalelengths
+                                 (subgain0, subgain1, subgain2)
+                                 scalefacscale preflag
+        valid = if (validateTable table0) && 
+                   (validateTable table1) &&
+                   (if flag then True else validateTable table2) 
+                then True else False
+    return $ if valid then Just (MP3SideData huffdata scaledata part23 
+                                             blocktype blockflag)
+                      else Nothing
+  */
+}
+
+SideData::SideData() { }
+
+BitStream::BitStream(std::istream& is) : is{is} { }
+inline size_t BitStream::inc() {
+    return (++i) == 8 ? (i = 0, ++y) : 0;
+}
+size_t BitStream::getBits(size_t n) {
+    size_t res{};
+    size_t idx{1};
+    while (y < buf.size() && n) {
+        res |= (buf[y] & (8 - i));
+        inc(), n -= 1;
+    } 
+    if (n > 0) {
+        size_t sz {n/8 + 1};
+        if (buf.size() < sz) buf.resize(sz);
+        is >> buf;
+        y = i = 0;
+        while (n) {
+            res |= (buf[y] & (8 - i));
+            inc(), n -= 1;
+        }
+    }
+    return res;
+}
+
+bool FrameHeader::mono() {
+    return channel_mode == ChannelMode::Mono;
+}
+
+
+template<typename T>
+inline size_t toInt(std::vector<T>& v) {
+    using namespace std;
+    size_t res{};
+    if (is_same<T, char>::value) {
+        for (size_t i{}; i < v.size(); ++i) {
+            res = res | ((uint8_t)v[i] << ((v.size()-1-i)*8));
+        } 
+    }
+    return res;
+}
+
 std::ostream& operator<<(std::ostream& os, ChannelMode& cm) {
     switch (cm) {
         case(ChannelMode::Mono): {
@@ -74,7 +233,7 @@ inline size_t bitSub(Cnt bs, size_t from, size_t to) {
     return res;
 }
 
-FrameHeader::FrameHeader(std::ifstream& f) {
+FrameHeader::FrameHeader(std::istream& f) {
     using namespace std;
     vector<char> frameBytes(4);
     f >> frameBytes;
@@ -95,7 +254,11 @@ FrameHeader::FrameHeader(std::ifstream& f) {
     sampling_rate = fH::sampling_rate[0][bitSub(bs, 21, 22)];
     padding_bit = bs[23];
     channel_mode  = fH::channel_mode[bitSub(bs, 25, 26)];
-    auto flb = 144 * bitrate/(sampling_rate + padding_bit);
+    auto flb = (144 * 1000 * bitrate)/sampling_rate + padding_bit;
+}
+
+size_t FrameHeader::length() {
+    return (144 * 1000 * bitrate)/sampling_rate + padding_bit;
 }
 
 

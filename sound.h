@@ -2,11 +2,14 @@
 #include <vector>
 #include <string>
 #include <cstdio>
+#include <variant>
 #include <cstring>
 #include <cstdint>
+#include <cmath>
 #include <filesystem>
 #include <fstream>
 #include <bitset>
+#include <tuple>
 
 
 enum class Compression {
@@ -22,9 +25,25 @@ enum class ChannelMode {
     JointStereo
 };
 
+enum class BlockFlag {
+    LongBlocks,
+    ShortBlocks, 
+    MixedBlocks 
+};
+
+BlockFlag toBlockFlag(bool mixedFlag, size_t blockType);
+
+struct BitStream {
+    size_t i{};
+    size_t y{};
+    std::vector<char> buf;
+    std::istream& is;
+    BitStream(std::istream& is);
+    size_t getBits(size_t);
+    inline size_t inc();
+};
+
 struct FrameHeader {
-    //std::vector<char> mpeg;
-    //std::vector<char> layer;
     std::string mpeg;
     std::string layer;
     uint32_t frame;
@@ -33,7 +52,43 @@ struct FrameHeader {
     uint8_t padding_bit;
     ChannelMode channel_mode;
     size_t frameCount;
-    FrameHeader(std::ifstream&);
+    FrameHeader(std::istream&);
+    size_t length();
+    bool mono();
+};
+
+struct HuffmanData {
+    size_t bigVal;
+    std::tuple<size_t, size_t, size_t> region_len;
+    std::tuple<size_t, size_t, size_t> table;
+};
+
+struct ScaleData {
+    double scaleGlobalGain;
+    std::tuple<size_t, size_t> scaleLengths;
+    std::tuple<double, double, double> scaleSubblockGain;
+    size_t scaleScalefacScale;
+    size_t scalePreflag;
+};
+
+struct SideData {
+    HuffmanData* sideHuffman;
+    ScaleData* sideScalefactor;
+    size_t sidePart23Length;
+    size_t sideBlocktype;
+    BlockFlag sideBlockflag;
+    SideData(BitStream&, FrameHeader&);
+    SideData();
+};
+
+struct SideInfo {
+    size_t mainData;
+    size_t scfsi;
+    std::variant<std::tuple<SideData, SideData>,
+        std::tuple<SideData, SideData, SideData, SideData>> granules;
+    /*sideGranule0ch0, sideGranule1ch0, sideGranule0ch0, sideGranule0ch1, 
+        sideGranule1ch0, sideGranule1ch1, */ 
+    SideInfo(std::istream&, FrameHeader&);
 };
 
 
@@ -109,5 +164,34 @@ namespace ID3v1 {
     size_t genre     = 127;
 };
 
+
+size_t tableSlen[][2] = {{0,0}, {0,1}, {0,2}, {0,3}, {3,0}, {1,1}, {1,2}, {1,3},
+             {2,1}, {2,2}, {2,3}, {3,1} ,{3,2}, {3,3}, {4,2}, {4,3}};
+
+const size_t* tableScaleBandBoundary(size_t);
+
+const size_t tfreq44100[] = {0,4,8,12,16,20,24,30,36,44,52,62,74,90,110,134,162,196,238,288,342,418,576};
+const size_t tfreq48000[] ={0,4,8,12,16,20,24,30, 36,42,50,60,72,88,106,128, 156,190,230,276,330,384,576};
+const size_t tfreq32000[] ={0,4,8,12,16,20,24,30, 36,44,54,66,82,102,126,156, 194,240,296,364,448,550,576};
+
+double mp3FloatRep1(size_t);
+double mp3FloatRep2(size_t);
+
+std::ostream& operator<<(std::ostream& os, ChannelMode& cm);
+bool operator==(std::vector<char>& v, const char* s); 
+bool operator!=(std::vector<char>& v, const char* s);
+template<std::size_t N>
+void reverse(std::bitset<N> &b);
+template <typename T>
+std::istream& operator>>(std::istream& is, std::vector<T>& v);
+template <typename T>
+std::ostream& operator<<(std::ostream& os, std::vector<T>& v);
+template <typename Cnt>
+inline size_t bitSub(Cnt bs, size_t from, size_t to);
+template<typename T>
+inline size_t toInt(std::vector<T>&);
+
+
 #define DEBUG(x) cout << #x << ": "<< x << endl;
 #define BIT(x, n) (((x) & (1 << (n))) ? 1 : 0)
+
