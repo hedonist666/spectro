@@ -75,7 +75,7 @@ struct FrameHeader {
     uint8_t padding_bit;
     ChannelMode channel_mode;
     size_t frameCount;
-    FrameHeader(std::istream&);
+    FrameHeader(uint32_t frame);
     size_t length();
     bool mono();
 };
@@ -117,10 +117,13 @@ struct SideInfo {
 
 
 struct Mp3 {
+    using Data = std::vector<char>;
     size_t fsize;
     size_t tagLen;
     std::ifstream f;
     FrameHeader* fh;
+    SideInfo* si;
+    Data* data; 
     Compression compType;
     Mp3(const char*);
     size_t trackLength();

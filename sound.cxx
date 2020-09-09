@@ -297,14 +297,8 @@ inline size_t bitSub(Cnt bs, size_t from, size_t to) {
     return res;
 }
 
-FrameHeader::FrameHeader(std::istream& f) {
+FrameHeader::FrameHeader(uint32_t frame) : frame {frame} {
     using namespace std;
-    vector<char> frameBytes(4);
-    f >> frameBytes;
-    frame = 0;
-    for (size_t i{}; i < 4; ++i) {
-        frame = frame | ((uint8_t)frameBytes[i] << ((3-i)*8));
-    } 
     bitset<32> bs {frame};
     reverse(bs);
     cout << "FRAME BITS: ";
@@ -354,7 +348,13 @@ Mp3::Mp3(const char* fn) {
         tagLen += (lenBuf[i] & 0x7f) << (7*(3-i));
     }
     f.seekg(tagLen + ID3v2::finish);
-    fh = new FrameHeader(f); 
+    vector<char> frameBytes(4);
+    f >> frameBytes;
+    uint32_t frame = 0;
+    for (size_t i{}; i < 4; ++i) {
+        frame = frame | ((uint8_t)frameBytes[i] << ((3-i)*8));
+    } 
+    fh = new FrameHeader(frame); 
     DEBUG(marker);
     DEBUG(tagLen);
     DEBUG(fh->frame);
