@@ -48,6 +48,8 @@ namespace Huffman {
         Tree();
         void insert(bool*, size_t, A);
         std::optional<A> lookup(bool*);
+        template<typename Getter>
+        std::optional<A> lookup(Getter);
     };
 };
 
@@ -60,6 +62,7 @@ struct BitStream {
     std::istream& is;
     BitStream(std::istream& is);
     size_t getBits(size_t);
+    bool get();
     inline size_t inc();
 };
 

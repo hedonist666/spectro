@@ -7,6 +7,15 @@ int main() {
 }
 
 template<typename A>
+template<typename Getter>
+std::optional<A> Huffman::Tree<A>::lookup(Getter bit) {
+    if (state == State::EMPTY) return {};
+    if (state == State::LEAF) return a;
+    if (bit.get()) return b.first->lookup(bit);
+    return b.second->lookup(bit);
+}
+
+template<typename A>
 std::optional<A> Huffman::Tree<A>::lookup(bool* bit) {
     if (state == State::EMPTY) return {};
     if (state == State::LEAF) return a;
@@ -177,6 +186,10 @@ SideData::SideData() { }
 BitStream::BitStream(std::istream& is) : is{is} { }
 inline size_t BitStream::inc() {
     return (++i) == 8 ? (i = 0, ++y) : 0;
+}
+
+bool BitStream::get() {
+    return getBits(1);
 }
 
 size_t BitStream::getBits(size_t n) {
