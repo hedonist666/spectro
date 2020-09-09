@@ -6,6 +6,8 @@ int main() {
     cout << track.trackLength();
 }
 
+
+
 template<typename A>
 template<typename Getter>
 std::optional<A> Huffman::Tree<A>::lookup(Getter bit) {
@@ -86,9 +88,8 @@ BlockFlag toBlockFlag(bool mixedFlag, size_t blockType) {
     return BlockFlag::LongBlocks;
 }
 
-SideInfo::SideInfo(std::istream& f, FrameHeader& header) {
+SideInfo::SideInfo(BitStream& bs, FrameHeader& header) {
     using namespace std;
-    BitStream bs {f};
     if (header.mono()) {
         auto dataptr     = bs.getBits(9);
         auto privateBit  = bs.getBits(5); 
@@ -331,10 +332,9 @@ size_t Mp3::trackLength() {
     }
 }
 
-Mp3::Mp3(const char* fn) {
+Mp3::Mp3(const char* fn) : f{fn, std::ios::binary}, bs{f} {
     using namespace std;
     fsize = filesystem::file_size(fn);
-    f.open(fn, ios::binary);
     DEBUG(fsize);
     vector<char> marker(3);
     f >> marker;

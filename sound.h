@@ -85,6 +85,12 @@ struct HuffmanData {
     std::tuple<size_t, size_t, size_t> region_len;
     std::tuple<size_t, size_t, size_t> table;
     size_t count1table;
+    //TODO
+    std::vector<size_t> decode(size_t);
+    std::pair<std::vector<size_t>, size_t> decodeRegion(size_t, size_t);
+    std::pair<std::pair<size_t, size_t>, size_t> decodeOne(size_t);
+    std::pair<std::tuple<size_t, size_t, size_t, size_t>, size_t> decodeOneQuad(size_t);
+    std::vector<size_t> decodeRegionQ(size_t, size_t, std::vector<size_t>);
 };
 
 struct ScaleData {
@@ -112,7 +118,7 @@ struct SideInfo {
         std::tuple<SideData, SideData, SideData, SideData>> granules;
     /*sideGranule0ch0, sideGranule1ch0, sideGranule0ch0, sideGranule0ch1, 
         sideGranule1ch0, sideGranule1ch1, */ 
-    SideInfo(std::istream&, FrameHeader&);
+    SideInfo(BitStream&, FrameHeader&);
 };
 
 
@@ -120,6 +126,7 @@ struct Mp3 {
     using Data = std::vector<char>;
     size_t fsize;
     size_t tagLen;
+    BitStream bs;
     std::ifstream f;
     FrameHeader* fh;
     SideInfo* si;
