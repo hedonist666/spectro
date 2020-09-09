@@ -1,4 +1,5 @@
 #include <iostream>
+#include <optional>
 #include <vector>
 #include <string>
 #include <cstdio>
@@ -31,6 +32,24 @@ enum class BlockFlag {
     MixedBlocks 
 };
 
+//left - 0, right - 1
+namespace Huffman {
+    template <typename A>
+    struct Tree {
+        union {
+            A a;
+            std::pair<Tree<A>*, Tree<A>*> b;
+        };
+        enum class State {
+            EMPTY,
+            NODE,
+            LEAF
+        } state;
+        Tree();
+        void insert(bool*, size_t, A);
+        std::optional<A> lookup(bool*);
+    };
+};
 
 BlockFlag toBlockFlag(bool mixedFlag, size_t blockType);
 

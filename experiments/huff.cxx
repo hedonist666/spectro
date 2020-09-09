@@ -20,7 +20,23 @@ void f() {
     }
 }
 
-template <size_t N>
+template <typename A>
+struct T {
+
+    union {
+        A a;
+        std::pair<T<A>, T<A>> b;
+    } data;
+
+    enum class Tree {
+        EMPTY,
+        NODE,
+        LEAF
+    };
+};
+
+template<class... Ts> struct overloaded : Ts... { using Ts::operator()...;  };
+template<class... Ts> overloaded(Ts...) -> overloaded<Ts...>;
 
 int main() {
     auto ptr = constructArgs<vector<int>>(8,2);    

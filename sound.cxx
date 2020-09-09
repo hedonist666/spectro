@@ -6,6 +6,51 @@ int main() {
     cout << track.trackLength();
 }
 
+template<typename A>
+std::optional<A> Huffman::Tree<A>::lookup(bool* bit) {
+    if (state == State::EMPTY) return {};
+    if (state == State::LEAF) return a;
+    if (*bit) return b.first->lookup(bit + 1);
+    return b.second->lookup(bit + 1);
+}
+
+template <typename A>
+Huffman::Tree<A>::Tree() {
+   state = State::EMPTY; 
+}
+
+template <typename A>
+void Huffman::Tree<A>::insert(bool* v, size_t n, A val) {
+    using namespace std;
+    using namespace Huffman;
+    if (state == State::EMPTY) {
+        if (n == 0) {
+            state = State::LEAF;
+            a = val;
+        }
+        else {
+            state = State::NODE;
+            auto tree1 = new Tree<A>();
+            auto tree2 = new Tree<A>();
+            tree1->insert(v + 1, n - 1, val);
+            if (*v) {
+                b = make_pair(tree1, tree2);
+            }
+            else {
+                b = make_pair(tree2, tree1);
+            }
+        }
+    }
+    else if (state == State::NODE) {
+        if (*v) {
+            b.first->insert(v + 1, n - 1, val);
+        }
+        else {
+            b.second->insert(v + 1, n - 1, val);
+        }
+    }
+}
+
 const size_t* tableScaleBandBoundary(size_t n) {
     switch (n) {
         case (44100):
