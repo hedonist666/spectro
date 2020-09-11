@@ -11,7 +11,11 @@
 #include <fstream>
 #include <bitset>
 #include <tuple>
+//#include <boost/hana.hpp>
 
+//#include "table.h"
+
+//namespace hana = boost::hana;
 
 enum class Compression {
     CBR = 0,
@@ -47,9 +51,9 @@ namespace Huffman {
         } state;
         Tree();
         void insert(bool*, size_t, A);
-        std::optional<A> lookup(bool*);
+        std::optional<std::pair<A, size_t>> lookup(bool*, size_t n = 0);
         template<typename Getter>
-        std::optional<A> lookup(Getter);
+        std::optional<std::pair<A, size_t>> lookup(Getter, size_t n = 0);
     };
 };
 
@@ -88,7 +92,7 @@ struct HuffmanData {
     //TODO
     std::vector<size_t> decode(size_t);
     std::pair<std::vector<size_t>, size_t> decodeRegion(size_t, size_t);
-    std::pair<std::pair<size_t, size_t>, size_t> decodeOne(size_t);
+    std::pair<std::pair<size_t, size_t>, size_t> decodeOne(size_t, BitStream&);
     std::pair<std::tuple<size_t, size_t, size_t, size_t>, size_t> decodeOneQuad(size_t);
     std::vector<size_t> decodeRegionQ(size_t, size_t, std::vector<size_t>);
 };
@@ -225,6 +229,7 @@ template <typename Cnt>
 inline size_t bitSub(Cnt bs, size_t from, size_t to);
 template<typename T>
 inline size_t toInt(std::vector<T>&);
+std::pair<Huffman::Tree<std::pair<size_t, size_t>>, size_t> huffmanDecodeTable(size_t);
 
 
 #define DEBUG(x) cout << #x << ": "<< x << endl;

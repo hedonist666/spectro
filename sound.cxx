@@ -1,28 +1,76 @@
 #include "sound.h"
 
+//using namespace hana::literals;
+
 int main() {
     using namespace std;
     Mp3 track("./materials/sad.mp3");
     cout << track.trackLength();
 }
 
+std::vector<size_t> decode(size_t) {
+
+}
+
+std::pair<std::vector<size_t>, size_t> decodeRegion(size_t, size_t) {
+
+}
+
+std::pair<std::pair<size_t, size_t>, size_t> decodeOne(size_t n, BitStream& bs) {
+    if (!n) {
+        return {{0, 0}, 0};
+    }
+    auto [table, linbits] = huffmanDecodeTable(n);
+    auto mval = table.lookup(bs);
+    if (mval) {
+        auto [coord, bitn] = mval.value(); 
+        auto [x, y] = coord;
+        decltype(linbits) bxlin{}, bylin{}, bxsgn{}, bysgn{};
+        if (x == 15 && linbits > 0) {
+            bxlin = bylin = linbits;
+        }
+        if (x > 0) {
+            bxsgn = bysgn = 1; 
+        }
+        auto xlin = bs.getBits(bxlin);
+        auto xsgn = bs.getBits(bxsgn) ? -1 : 0;
+        auto ylin = bs.getBits(bylin);
+        auto ysgn = bs.getBits(bysgn) ? -1 : 0;
+        auto xx = (x + xlin) * xsgn;
+        auto yy = (y + ylin) * ysgn;
+        auto bitn2 = bxlin + bylin + bxsgn + bysgn;
+        return {{xx, yy}, bitn2};
+    }
+}
+
+std::pair<std::tuple<size_t, size_t, size_t, size_t>, size_t> decodeOneQuad(size_t) {
+
+}
+
+std::vector<size_t> decodeRegionQ(size_t, size_t, std::vector<size_t>) {
+
+}
+
+std::pair<Huffman::Tree<std::pair<size_t, size_t>>, size_t> huffmanDecodeTable(size_t) {
+
+}
 
 
 template<typename A>
 template<typename Getter>
-std::optional<A> Huffman::Tree<A>::lookup(Getter bit) {
+std::optional<std::pair<A, size_t>> Huffman::Tree<A>::lookup(Getter bit, size_t n) {
     if (state == State::EMPTY) return {};
-    if (state == State::LEAF) return a;
-    if (bit.get()) return b.first->lookup(bit);
-    return b.second->lookup(bit);
+    if (state == State::LEAF) return {{a, n}};
+    if (bit.get()) return b.first->lookup(bit, n + 1);
+    return b.second->lookup(bit, n + 1);
 }
 
 template<typename A>
-std::optional<A> Huffman::Tree<A>::lookup(bool* bit) {
+std::optional<std::pair<A, size_t>> Huffman::Tree<A>::lookup(bool* bit, size_t n) {
     if (state == State::EMPTY) return {};
-    if (state == State::LEAF) return a;
-    if (*bit) return b.first->lookup(bit + 1);
-    return b.second->lookup(bit + 1);
+    if (state == State::LEAF) return {{a, n}};
+    if (*bit) return b.first->lookup(bit, n + 1);
+    return b.second->lookup(bit, n + 1);
 }
 
 template <typename A>
@@ -194,6 +242,7 @@ bool BitStream::get() {
 }
 
 size_t BitStream::getBits(size_t n) {
+    if (!n) return 0;
     size_t res{};
     size_t idx{1};
     while (y < buf.size() && n) {

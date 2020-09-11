@@ -85,6 +85,8 @@ int main() {
     t.insert(v1, 2, 8);
     bool v2[] = {1, 1};
     t.insert(v2, 2, 9);
-    cout << t.lookup(v).value_or(-1);
+    cout << t.lookup(v).value_or(-1) << endl;
+    cout << t.lookup(v1).value_or(-1) << endl;
+    cout << t.lookup(v2).value_or(-1) << endl;
     return 0;
 }
