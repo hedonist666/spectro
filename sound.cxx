@@ -1,6 +1,6 @@
 #include "sound.h"
 
-//using namespace hana::literals;
+using namespace hana::literals;
 
 int main() {
     using namespace std;

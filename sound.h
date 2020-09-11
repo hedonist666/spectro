@@ -11,11 +11,11 @@
 #include <fstream>
 #include <bitset>
 #include <tuple>
-//#include <boost/hana.hpp>
+#include <boost/hana.hpp>
 
 //#include "table.h"
 
-//namespace hana = boost::hana;
+namespace hana = boost::hana;
 
 enum class Compression {
     CBR = 0,
