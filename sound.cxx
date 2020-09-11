@@ -1,6 +1,5 @@
 #include "sound.h"
 
-//using namespace hana::literals;
 
 int main() {
     using namespace std;
@@ -8,15 +7,35 @@ int main() {
     cout << track.trackLength();
 }
 
-std::vector<size_t> decode(size_t) {
-
+std::vector<size_t> HuffmanData::decode(size_t bitlen) {
+    using namespace std;
+    auto [reg0, bitcount0] = decodeRegion(get<0>(region_len), get<0>(table));
+    auto [reg1, bitcount1] = decodeRegion(get<1>(region_len), get<1>(table));
+    auto [reg2, bitcount2] = decodeRegion(get<2>(region_len), get<2>(table));
+    auto bitsread = bitcount0 + bitcount1 + bitcount2;
+    auto rqlen = bitlen - bitsread - 1;
+    vector<size_t> accum{};
+    auto regQ = decodeRegionQ(count1table, rqlen, accum);
+    vector<size_t> res = move(reg0);
+    res.reserve(reg0.size() + reg1.size() + reg2.size());
+    move(begin(reg1), end(reg1), back_inserter(res));
+    move(begin(reg2), end(reg2), back_inserter(res));
+    return res;
 }
 
-std::pair<std::vector<size_t>, size_t> decodeRegion(size_t, size_t) {
-
+std::pair<std::vector<size_t>, size_t> HuffmanData::decodeRegion(size_t reglen, size_t tablen) {
+    using namespace std;
+    decltype(decodeRegion(reglen, tablen)) res {};
+    for (size_t i{}; i < reglen/2; ++i) {
+        auto dec = decodeOne(tablen); 
+        res.first.push_back(dec.first.first);
+        res.first.push_back(dec.first.second);
+        res.second += dec.second;
+    }
+    return res;
 }
 
-std::pair<std::pair<size_t, size_t>, size_t> decodeOne(size_t n, BitStream& bs) {
+std::pair<std::pair<size_t, size_t>, size_t> HuffmanData::decodeOne(size_t n) {
     if (!n) {
         return {{0, 0}, 0};
     }
@@ -41,20 +60,57 @@ std::pair<std::pair<size_t, size_t>, size_t> decodeOne(size_t n, BitStream& bs) 
         auto bitn2 = bxlin + bylin + bxsgn + bysgn;
         return {{xx, yy}, bitn2};
     }
+    throw "...";
 }
 
-std::pair<std::tuple<size_t, size_t, size_t, size_t>, size_t> decodeOneQuad(size_t) {
-
+std::pair<std::tuple<size_t, size_t, size_t, size_t>, size_t> HuffmanData::decodeOneQuad(size_t n) {
+    if (!n) {
+        return {{0, 0, 0, 0}, 0};
+    }
+    auto table = huffmanDecodeTableQuad(n);
+    auto mval = table.lookup(bs);
+    if (mval) {
+        auto [coord, bitn] = mval.value(); 
+        auto [a, b, c, d] = coord;
+#define sb(x) ((x) > 0 ? 1 : 0)
+        auto asgn = bs.getBits(sb(a)) ? -1 : 0;   
+        auto bsgn = bs.getBits(sb(b)) ? -1 : 0;   
+        auto csgn = bs.getBits(sb(c)) ? -1 : 0;   
+        auto dsgn = bs.getBits(sb(d)) ? -1 : 0; 
+        return {
+            {
+                a * asgn,
+                b * bsgn,
+                c * csgn,
+                d * dsgn,
+            },
+            sb(a)+sb(b)+sb(c)+sb(d)+bitn
+        };
+    }
+#undef sb
+    else throw "...";
 }
 
-std::vector<size_t> decodeRegionQ(size_t, size_t, std::vector<size_t>) {
-
+std::vector<size_t>& HuffmanData::decodeRegionQ(size_t tablen, size_t bitsrem, std::vector<size_t>& accum) {
+    if (bitsrem < 0) {
+        if (bitsrem == -1) {
+            return accum;
+        }
+        else throw "...";
+    } 
+    auto [coord, bitn] = decodeOneQuad(tablen);
+    auto [a, b, c, d] = coord;
+    accum.insert(accum.end(), {a,b,c,d});
+    return decodeRegionQ(tablen, bitsrem - bitn, accum);
 }
 
 std::pair<Huffman::Tree<std::pair<size_t, size_t>>, size_t> huffmanDecodeTable(size_t) {
 
 }
 
+Huffman::Tree<std::tuple<size_t, size_t, size_t, size_t>> huffmanDecodeTableQuad(size_t) {
+
+}
 
 template<typename A>
 template<typename Getter>
@@ -214,7 +270,7 @@ SideData::SideData(BitStream& bs, FrameHeader& header) {
     auto scalefacbit = bs.getBits(1);
     auto scalefacscale = scalefacbit;
     auto count1table = bs.getBits(1);
-    HuffmanData huffdata {bigvalues, make_tuple(r0len, r1len, r2len),
+    HuffmanData huffdata {bs, bigvalues, make_tuple(r0len, r1len, r2len),
         make_tuple(table0, table1, table2), count1table};
     ScaleData scaledata {globalgain, make_tuple(scalelengths[0], scalelengths[1]), make_tuple(subgain0, subgain1, subgain2),
         scalefacscale, preflag};

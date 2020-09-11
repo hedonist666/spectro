@@ -11,11 +11,10 @@
 #include <fstream>
 #include <bitset>
 #include <tuple>
-//#include <boost/hana.hpp>
+#include <iterator>
+#include <algorithm>
 
 //#include "table.h"
-
-//namespace hana = boost::hana;
 
 enum class Compression {
     CBR = 0,
@@ -85,6 +84,7 @@ struct FrameHeader {
 };
 
 struct HuffmanData {
+    BitStream& bs;
     size_t bigVal;
     std::tuple<size_t, size_t, size_t> region_len;
     std::tuple<size_t, size_t, size_t> table;
@@ -92,9 +92,9 @@ struct HuffmanData {
     //TODO
     std::vector<size_t> decode(size_t);
     std::pair<std::vector<size_t>, size_t> decodeRegion(size_t, size_t);
-    std::pair<std::pair<size_t, size_t>, size_t> decodeOne(size_t, BitStream&);
+    std::pair<std::pair<size_t, size_t>, size_t> decodeOne(size_t);
     std::pair<std::tuple<size_t, size_t, size_t, size_t>, size_t> decodeOneQuad(size_t);
-    std::vector<size_t> decodeRegionQ(size_t, size_t, std::vector<size_t>);
+    std::vector<size_t>& decodeRegionQ(size_t, size_t, std::vector<size_t>&);
 };
 
 struct ScaleData {
@@ -230,6 +230,7 @@ inline size_t bitSub(Cnt bs, size_t from, size_t to);
 template<typename T>
 inline size_t toInt(std::vector<T>&);
 std::pair<Huffman::Tree<std::pair<size_t, size_t>>, size_t> huffmanDecodeTable(size_t);
+Huffman::Tree<std::tuple<size_t, size_t, size_t, size_t>> huffmanDecodeTableQuad(size_t);
 
 
 #define DEBUG(x) cout << #x << ": "<< x << endl;
