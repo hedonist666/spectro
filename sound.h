@@ -97,13 +97,26 @@ struct HuffmanData {
     std::vector<size_t>& decodeRegionQ(size_t, size_t, std::vector<size_t>&);
 };
 
+struct ScaleFactors {
+    std::vector<size_t> a;
+    std::vector<std::vector<size_t>> b;
+    size_t c;
+};
+
+struct Scale {
+    std::vector<size_t> scaleL;
+    std::vector<std::vector<size_t>> scaleS; 
+    size_t bitsread;
+};
+
 struct ScaleData {
     double scaleGlobalGain;
-    std::tuple<size_t, size_t> scaleLengths;
+    std::pair<size_t, size_t> slen;
     std::tuple<double, double, double> scaleSubblockGain;
-    size_t scaleScalefacScale;
+    size_t scalefac;
     size_t scalePreflag;
 };
+
 
 struct SideData {
     HuffmanData* sideHuffman;
@@ -113,6 +126,7 @@ struct SideData {
     BlockFlag sideBlockflag;
     SideData(BitStream&, FrameHeader&);
     SideData();
+    Scale parseRawScaleFactors(BitStream&, size_t, std::vector<size_t>);
 };
 
 struct SideInfo {

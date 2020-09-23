@@ -219,6 +219,56 @@ inline bool validateTable(size_t n) {
     return true;
 }
 
+
+/*
+struct SideData {
+    HuffmanData* sideHuffman;
+    ScaleData* sideScalefactor;
+    size_t sidePart23Length;
+    size_t sideBlocktype;
+    BlockFlag sideBlockflag;
+    SideData(BitStream&, FrameHeader&);
+    SideData();
+    Scale parseRawScaleFactors(size_t, vector<size_t>);
+};
+*/
+
+Scale SideData::parseRawScaleFactors(BitStream& bs, size_t scfsi, std::vector<size_t> gran0) {
+    using namespace std;
+    if (sideBlocktype == 2 && sideBlockflag == BlockFlag::MixedBlocks) {
+        vector<size_t> scaleL0(22, 0);
+        vector<vector<size_t>> scaleS(22, {0, 0, 0});
+        generate(scaleL0.begin(), scaleL0.begin() + 8, [&]() {
+            return bs.getBits(sideScalefactor->slen.first);
+        });
+        generate(scaleS.begin() + 3, scaleS.begin() + 6, [&]() {
+            return vector<size_t> {
+                bs.getBits(sideScalefactor->slen.first),
+                bs.getBits(sideScalefactor->slen.first),
+                bs.getBits(sideScalefactor->slen.first)
+            };
+        });
+        generate(scaleS.begin() + 6, scaleS.end() + 13, [&]() {
+            return vector<size_t> {
+                bs.getBits(sideScalefactor->slen.second),
+                bs.getBits(sideScalefactor->slen.second),
+                bs.getBits(sideScalefactor->slen.second)
+            };
+        });
+        auto bitsread = 8 * 9 * sideScalefactor->slen.first + 21 * sideScalefactor->slen.second;
+        return {scaleL0, scaleS, bitsread};
+    } 
+
+    else if (sideBlocktype == 2) {
+        auto bitsread = 8 * 9 * sideScalefactor->slen.first + 21 * sideScalefactor->slen.second;
+    }
+
+    else {
+
+    }
+}
+
+
 SideData::SideData(BitStream& bs, FrameHeader& header) {
     using namespace std;
     auto part23         = bs.getBits(12);
@@ -272,7 +322,7 @@ SideData::SideData(BitStream& bs, FrameHeader& header) {
     auto count1table = bs.getBits(1);
     HuffmanData huffdata {bs, bigvalues, make_tuple(r0len, r1len, r2len),
         make_tuple(table0, table1, table2), count1table};
-    ScaleData scaledata {globalgain, make_tuple(scalelengths[0], scalelengths[1]), make_tuple(subgain0, subgain1, subgain2),
+    ScaleData scaledata {globalgain, {scalelengths[0], scalelengths[1]}, {subgain0, subgain1, subgain2},
         scalefacscale, preflag};
     if (validateTable(table0) && validateTable(table1) && (flag || validateTable(table2))) {
        sideHuffman = new HuffmanData(move(huffdata));
