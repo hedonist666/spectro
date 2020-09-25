@@ -186,6 +186,13 @@ double mp3FloatRep2(size_t n) {
     return pow(2.0, 0.25 * (-n * 8));
 } 
 
+double mp3FloatRep3(size_t a, size_t b) {
+    if (a) {
+       return pow(2.0, -1 * b); 
+    }
+    return pow(2.0, -0.5 * b);
+}
+
 BlockFlag toBlockFlag(bool mixedFlag, size_t blockType) {
     if (mixedFlag) return BlockFlag::MixedBlocks;
     if (blockType == 2) return BlockFlag::ShortBlocks;
@@ -231,7 +238,32 @@ struct SideData {
     SideData();
     Scale parseRawScaleFactors(size_t, vector<size_t>);
 };
+
+struct ScaleData {
+    double scaleGlobalGain;
+    std::pair<size_t, size_t> slen;
+    std::tuple<double, double, double> scaleSubblockGain;
+    size_t scalefac;
+    size_t scalePreflag;
+};
 */
+
+std::pair<std::vector<double>, std::vector<double>> SideData::unpackScaleFactors(std::vector<size_t> large,
+        std::vector<std::vector<size_t>> small) {
+    if (sideScalefactor->scalePreflag) {
+        for (size_t i{}; i < large.size(); ++i) {
+            large[i] += tablePretab[i];
+        }
+    }
+    for (auto& e : large)  {
+        e = mp3FloatRep3(sideScalefactor->scalefac, e);
+    }
+    for (auto& e : small) {
+        for (auto& v : e) {
+            v = mp3FloatRep3(sideScalefactor->scalefac, v);
+        }
+    }
+}
 
 Scale SideData::parseRawScaleFactors(BitStream& bs, size_t scfsi, std::vector<size_t> gran0) {
     using namespace std;
@@ -258,13 +290,73 @@ Scale SideData::parseRawScaleFactors(BitStream& bs, size_t scfsi, std::vector<si
         auto bitsread = 8 * 9 * sideScalefactor->slen.first + 21 * sideScalefactor->slen.second;
         return {scaleL0, scaleS, bitsread};
     } 
-
     else if (sideBlocktype == 2) {
         auto bitsread = 8 * 9 * sideScalefactor->slen.first + 21 * sideScalefactor->slen.second;
+        vector<vector<size_t>> scaleS(2, {0, 0, 0});
+        generate(scaleS.begin(), scaleS.end() + 6, [&]() {
+            return vector<size_t> {
+                bs.getBits(sideScalefactor->slen.first),
+                bs.getBits(sideScalefactor->slen.first),
+                bs.getBits(sideScalefactor->slen.first)
+            };
+        });
+        generate(scaleS.begin() + 6, scaleS.end() + 12, [&]() {
+            return vector<size_t> {
+                bs.getBits(sideScalefactor->slen.first),
+                bs.getBits(sideScalefactor->slen.first),
+                bs.getBits(sideScalefactor->slen.first)
+            };
+        });
+        return {{}, scaleS, bitsread};
     }
-
     else {
+        auto copyband0 = (!gran0.empty()) && (scfsi & 8);
+        auto copyband1 = (!gran0.empty()) && (scfsi & 4);
+        auto copyband2 = (!gran0.empty()) && (scfsi & 2);
+        auto copyband3 = (!gran0.empty()) && (scfsi & 1);
+        vector<size_t> scalefac(22, 0);
 
+        if (copyband0) {
+            copy(gran0.begin(), gran0.begin() + 6, scalefac.begin());
+        }
+        else {
+            generate(scalefac.begin(), scalefac.begin() + 6, [&]() {
+               return bs.getBits(sideScalefactor->slen.first); 
+            }); 
+        }
+
+        if (copyband1) {
+            copy(gran0.begin() + 6, gran0.begin() + 11, scalefac.begin() + 6);
+        }
+        else {
+            generate(scalefac.begin() + 6, scalefac.begin() + 11, [&]() {
+               return bs.getBits(sideScalefactor->slen.first); 
+            }); 
+        }
+
+        if (copyband2) {
+            copy(gran0.begin() + 11, gran0.begin() + 16, scalefac.begin() + 11);
+        }
+        else {
+            generate(scalefac.begin() + 11, scalefac.begin() + 16, [&]() {
+               return bs.getBits(sideScalefactor->slen.first); 
+            }); 
+        }
+
+        if (copyband3) {
+            copy(gran0.begin() + 16, gran0.begin() + 21, scalefac.begin() + 16);
+        }
+        else {
+            generate(scalefac.begin() + 16, scalefac.begin() + 21, [&]() {
+               return bs.getBits(sideScalefactor->slen.first); 
+            }); 
+        }
+        
+        auto bitsread = 6 * (copyband0 ? 0 : sideScalefactor->slen.first) +
+                        5 * (copyband1 ? 0 : sideScalefactor->slen.first) +
+                        5 * (copyband2 ? 0 : sideScalefactor->slen.first) +
+                        5 * (copyband3 ? 0 : sideScalefactor->slen.first);
+        return {scalefac, {{}}, bitsread};
     }
 }
 

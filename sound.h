@@ -127,6 +127,8 @@ struct SideData {
     SideData(BitStream&, FrameHeader&);
     SideData();
     Scale parseRawScaleFactors(BitStream&, size_t, std::vector<size_t>);
+    std::pair<std::vector<double>, std::vector<double>> unpackScaleFactors(std::vector<size_t>,
+            std::vector<std::vector<size_t>>);
 };
 
 struct SideInfo {
@@ -219,6 +221,11 @@ namespace ID3v1 {
 
 size_t tableSlen[][2] = {{0,0}, {0,1}, {0,2}, {0,3}, {3,0}, {1,1}, {1,2}, {1,3},
              {2,1}, {2,2}, {2,3}, {3,1} ,{3,2}, {3,3}, {4,2}, {4,3}};
+
+
+std::vector<size_t> tablePretab {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
+               1, 1, 1, 1, 2, 2, 3, 3, 3, 2, 0, 0};
+
 
 const size_t* tableScaleBandBoundary(size_t);
 
