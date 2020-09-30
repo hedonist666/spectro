@@ -127,7 +127,7 @@ struct SideData {
     SideData(BitStream&, FrameHeader&);
     SideData();
     Scale parseRawScaleFactors(BitStream&, size_t, std::vector<size_t>);
-    std::pair<std::vector<double>, std::vector<double>> unpackScaleFactors(std::vector<size_t>,
+    std::pair<std::vector<double>, std::vector<std::vector<double>>> unpackScaleFactors(std::vector<size_t>,
             std::vector<std::vector<size_t>>);
 };
 
@@ -140,7 +140,6 @@ struct SideInfo {
         sideGranule1ch0, sideGranule1ch1, */ 
     SideInfo(BitStream&, FrameHeader&);
 };
-
 
 struct Mp3 {
     using Data = std::vector<char>;

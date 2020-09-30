@@ -248,21 +248,27 @@ struct ScaleData {
 };
 */
 
-std::pair<std::vector<double>, std::vector<double>> SideData::unpackScaleFactors(std::vector<size_t> large,
-        std::vector<std::vector<size_t>> small) {
+std::pair<std::vector<double>, std::vector<std::vector<double>>>
+SideData::unpackScaleFactors(std::vector<size_t> large,
+        std::vector<std::vector<size_t>> small) 
+{
+    std::vector<double> largeM (large.size());
+    std::vector<std::vector<double>> smallM (small.size());
     if (sideScalefactor->scalePreflag) {
         for (size_t i{}; i < large.size(); ++i) {
             large[i] += tablePretab[i];
         }
     }
-    for (auto& e : large)  {
-        e = mp3FloatRep3(sideScalefactor->scalefac, e);
+    for (size_t i{}; i < large.size(); ++i)  {
+        largeM[i] = mp3FloatRep3(sideScalefactor->scalefac, large[i]);
     }
-    for (auto& e : small) {
-        for (auto& v : e) {
-            v = mp3FloatRep3(sideScalefactor->scalefac, v);
+    for (size_t i{}; i < small.size(); ++i) {
+        smallM[i].resize(small[i].size());
+        for (size_t j{}; j < small[i].size(); ++j) {
+            smallM[i][j] = mp3FloatRep3(sideScalefactor->scalefac, small[i][j]);
         }
     }
+    return std::make_pair(largeM, smallM);
 }
 
 Scale SideData::parseRawScaleFactors(BitStream& bs, size_t scfsi, std::vector<size_t> gran0) {
