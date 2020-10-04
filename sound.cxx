@@ -7,6 +7,78 @@ int main() {
     cout << track.trackLength();
 }
 
+
+inline std::pair<std::vector<size_t>, MP3DataChunk>
+helperMD(BitStream& bs, SideData& side, size_t scfsi, const std::vector<size_t>& gran) {
+    if (!side.sideHuffman) throw "parseMainData:: empty huffman";
+    if (!side.sideScalefactor) throw "parseMainData:: empty huffman";
+    //надеюсь компилятор отметет эти присвоения
+    auto& huffdata = *side.sideHuffman;
+    auto& scaledata = *side.sideScalefactor;
+    auto bt = side.sideBlocktype;
+    auto bf = side.sideBlockflag;
+    auto part23 = side.sidePart23Length;
+    auto [scaleL, scaleS, bitsread] = side.parseRawScaleFactors(bs, scfsi, gran);
+    auto [scaleFacLarge, scaleFacSmall] = side.unpackScaleFactors(scaleL, scaleS);
+    auto maindata = huffdata.decode(part23 - bitsread);
+    return {scaleL, {bt, bf, scaledata.scaleGlobalGain, scaledata.scaleSubblockGain, scaleFacLarge,
+        scaleFacSmall, {scaleL, scaleS}, maindata}};
+}
+/*
+ 
+struct SideInfo {
+    size_t mainData;
+    size_t scfsi;
+    std::variant<std::tuple<SideData, SideData>,
+        std::tuple<SideData, SideData, SideData, SideData>> granules;
+    SideInfo(BitStream&, FrameHeader&);
+};
+*/
+
+MP3Data parseMainData(LogicalFrame& lf) {
+    if (!lf.fh) throw "parseMainData:: empty frame header";
+    if (!lf.si) throw "parseMainData:: empty side info";
+    auto& header = *lf.fh; 
+    auto& sideinfo = *lf.si;
+    auto scfsi = sideinfo.scfsi;
+    auto scfsi0 = scfsi & 0xf0; //возможно надо >> 4
+    auto scfsi1 = scfsi & 0xf;
+    if (header.mono()) {
+
+    }
+}
+
+/*
+
+struct LogicalFrame {
+    FrameHeader* fh;
+    SideInfo* si;
+    char* data;
+};
+
+
+struct FrameHeader {
+    std::string mpeg;
+    std::string layer;
+    uint32_t frame;
+    size_t bitrate;
+    size_t sampling_rate;
+    uint8_t padding_bit;
+    ChannelMode channel_mode;
+    size_t frameCount;
+    FrameHeader(uint32_t frame);
+    size_t length();
+    bool mono();
+};
+
+
+*/
+
+LogicalFrame unpackFrame(BitStream& bs) {
+    
+}
+
+
 std::vector<size_t> HuffmanData::decode(size_t bitlen) {
     using namespace std;
     auto [reg0, bitcount0] = decodeRegion(get<0>(region_len), get<0>(table));
@@ -271,7 +343,7 @@ SideData::unpackScaleFactors(std::vector<size_t> large,
     return std::make_pair(largeM, smallM);
 }
 
-Scale SideData::parseRawScaleFactors(BitStream& bs, size_t scfsi, std::vector<size_t> gran0) {
+Scale SideData::parseRawScaleFactors(BitStream& bs, size_t scfsi, const std::vector<size_t>& gran0) {
     using namespace std;
     if (sideBlocktype == 2 && sideBlockflag == BlockFlag::MixedBlocks) {
         vector<size_t> scaleL0(22, 0);
@@ -577,10 +649,10 @@ size_t FrameHeader::length() {
 size_t Mp3::trackLength() {
     using namespace std;
     if (compType == Compression::CBR) {
-        return (fsize - tagLen)/(fh->bitrate*1000) * 8;
+        return (fsize - tagLen)/(lf->fh->bitrate*1000) * 8;
     }   
     else {
-        return fh->frameCount*1152/fh->sampling_rate;
+        return lf->fh->frameCount*1152/lf->fh->sampling_rate;
         return 0;
     }
 }
@@ -607,29 +679,30 @@ Mp3::Mp3(const char* fn) : f{fn, std::ios::binary}, bs{f} {
     for (size_t i{}; i < 4; ++i) {
         frame = frame | ((uint8_t)frameBytes[i] << ((3-i)*8));
     } 
-    fh = new FrameHeader(frame); 
+    lf = new LogicalFrame();
+    lf->fh = new FrameHeader(frame);
     DEBUG(marker);
     DEBUG(tagLen);
-    DEBUG(fh->frame);
-    DEBUG(fh->mpeg);
-    DEBUG(fh->layer);
-    DEBUG(fh->bitrate);
-    DEBUG(fh->sampling_rate);
-    DEBUG(fh->padding_bit);
-    DEBUG(fh->channel_mode);
-    size_t xingOff = fh->channel_mode != ChannelMode::Mono ? 32 : 17;
+    DEBUG(lf->fh->frame);
+    DEBUG(lf->fh->mpeg);
+    DEBUG(lf->fh->layer);
+    DEBUG(lf->fh->bitrate);
+    DEBUG(lf->fh->sampling_rate);
+    DEBUG(lf->fh->padding_bit);
+    DEBUG(lf->fh->channel_mode);
+    size_t xingOff = lf->fh->channel_mode != ChannelMode::Mono ? 32 : 17;
     DEBUG(xingOff);
     vector<char> sign(4);
     f.seekg(tagLen + ID3v2::finish + xingOff);
     f >> sign;
-    fh->frameCount = 0;
+    lf->fh->frameCount = 0;
     if (sign == "Xing") {
         compType = Compression::XING;
         f.seekg(4, ios_base::cur);
         vector<char> scBytes(4);
         f >> scBytes;
         for (size_t i{}; i < 4; ++i) {
-            fh->frameCount = fh->frameCount | ((uint8_t)scBytes[i] << ((3-i)*8));
+            lf->fh->frameCount = lf->fh->frameCount | ((uint8_t)scBytes[i] << ((3-i)*8));
         } 
     }
     else {
@@ -643,13 +716,14 @@ Mp3::Mp3(const char* fn) : f{fn, std::ios::binary}, bs{f} {
             vector<char> scBytes(3);
             f >> scBytes;
             for (size_t i{}; i < 4; ++i) {
-                fh->frameCount = fh->frameCount | ((uint8_t)scBytes[i] << ((3-i)*8));
+                lf->fh->frameCount = lf->fh->frameCount | ((uint8_t)scBytes[i] << ((3-i)*8));
             } 
         }
         else compType = Compression::CBR;
     }
-    DEBUG(fh->frameCount);
+    DEBUG(lf->fh->frameCount);
     DEBUG((int)compType);
+    f.seekg(tagLen + ID3v2::finish);
 }
 
 Mp3::~Mp3() {

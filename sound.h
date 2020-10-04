@@ -126,7 +126,7 @@ struct SideData {
     BlockFlag sideBlockflag;
     SideData(BitStream&, FrameHeader&);
     SideData();
-    Scale parseRawScaleFactors(BitStream&, size_t, std::vector<size_t>);
+    Scale parseRawScaleFactors(BitStream&, size_t, const std::vector<size_t>&);
     std::pair<std::vector<double>, std::vector<std::vector<double>>> unpackScaleFactors(std::vector<size_t>,
             std::vector<std::vector<size_t>>);
 };
@@ -141,18 +141,48 @@ struct SideInfo {
     SideInfo(BitStream&, FrameHeader&);
 };
 
+struct LogicalFrame {
+    FrameHeader* fh;
+    SideInfo* si;
+    char* data;
+};
+
+struct MP3DataChunk {
+    size_t chunkBlockType;
+    BlockFlag chunkBlockFlag;
+    double chunkScaleGain;
+    std::tuple<double, double, double> chunkScaleSubGain;
+    std::vector<double> chunkScaleLong;
+    std::vector<std::vector<double>> chunkScaleShort;
+    std::pair<std::vector<size_t>, std::vector<std::vector<size_t>>> chunkISParam;
+    std::vector<size_t> chunkData;
+};
+
+struct MP3Data {
+    bool dvach;     
+    size_t sampleRate;
+    ChannelMode channelMode;
+    std::pair<bool, bool> someFlags;
+    union {
+        std::tuple<MP3DataChunk, MP3DataChunk> ch1;
+        std::tuple<MP3DataChunk, MP3DataChunk, MP3DataChunk, MP3DataChunk> ch2;
+    } ch;
+};
+
+LogicalFrame unpackFrame(BitStream& bs);
+MP3Data parseMainData(LogicalFrame& lf);
+
+
 struct Mp3 {
-    using Data = std::vector<char>;
     size_t fsize;
     size_t tagLen;
     BitStream bs;
+    LogicalFrame* lf;
     std::ifstream f;
-    FrameHeader* fh;
-    SideInfo* si;
-    Data* data; 
     Compression compType;
     Mp3(const char*);
     size_t trackLength();
+    MP3Data unpackOne();
     ~Mp3();
 };
 
