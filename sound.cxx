@@ -24,18 +24,9 @@ helperMD(BitStream& bs, SideData& side, size_t scfsi, const std::vector<size_t>&
     return {scaleL, {bt, bf, scaledata.scaleGlobalGain, scaledata.scaleSubblockGain, scaleFacLarge,
         scaleFacSmall, {scaleL, scaleS}, maindata}};
 }
-/*
- 
-struct SideInfo {
-    size_t mainData;
-    size_t scfsi;
-    std::variant<std::tuple<SideData, SideData>,
-        std::tuple<SideData, SideData, SideData, SideData>> granules;
-    SideInfo(BitStream&, FrameHeader&);
-};
-*/
 
-MP3Data parseMainData(LogicalFrame& lf) {
+MP3Data parseMainData(BitStream& bs, LogicalFrame& lf) {
+    using namespace std;
     if (!lf.fh) throw "parseMainData:: empty frame header";
     if (!lf.si) throw "parseMainData:: empty side info";
     auto& header = *lf.fh; 
@@ -44,38 +35,33 @@ MP3Data parseMainData(LogicalFrame& lf) {
     auto scfsi0 = scfsi & 0xf0; //возможно надо >> 4
     auto scfsi1 = scfsi & 0xf;
     if (header.mono()) {
-
+        auto [s0s, s0m] = helperMD(bs, get<0>(get<0>(sideinfo.granules)), scfsi, {});
+        auto [s1s, s1m] = helperMD(bs, get<1>(get<0>(sideinfo.granules)), scfsi, s0s);
+        return {header.sampling_rate, header.channel_mode, {header.ms, header.is}, 
+            make_tuple(s0m, s1m)};
+    }
+    else {
+        auto [s00s, s00m] = helperMD(bs, get<0>(get<1>(sideinfo.granules)), scfsi0, {});
+        auto [s01s, s01m] = helperMD(bs, get<1>(get<1>(sideinfo.granules)), scfsi1, {});
+        auto [s10s, s10m] = helperMD(bs, get<2>(get<1>(sideinfo.granules)), scfsi0, s00s);
+        auto [s11s, s11m] = helperMD(bs, get<3>(get<1>(sideinfo.granules)), scfsi1, s01s);
+        return {header.sampling_rate, header.channel_mode, {header.ms, header.is}, 
+            make_tuple(s00m, s01m, s10m, s11m)};
     }
 }
 
-/*
-
-struct LogicalFrame {
-    FrameHeader* fh;
-    SideInfo* si;
-    char* data;
-};
-
-
-struct FrameHeader {
-    std::string mpeg;
-    std::string layer;
-    uint32_t frame;
-    size_t bitrate;
-    size_t sampling_rate;
-    uint8_t padding_bit;
-    ChannelMode channel_mode;
-    size_t frameCount;
-    FrameHeader(uint32_t frame);
-    size_t length();
-    bool mono();
-};
-
-
-*/
 
 LogicalFrame unpackFrame(BitStream& bs) {
-    
+    auto headerBits = bs.getBits(32);    
+    FrameHeader* header = new FrameHeader(headerBits);
+    size_t lengthcrc = header->crc ? 2 : 0;
+    size_t lengthside = header->channel_mode == ChannelMode::Mono ? 17 : 32;
+    size_t lengthframe = header->length();
+    bs.getBits(32);
+    bs.getBits(lengthcrc << 3);
+    SideInfo* side = new SideInfo(bs, *header);
+    auto main = bs.getBits(lengthframe - 4 - lengthcrc - lengthside); 
+    auto peek = bs.lookAhead(8);    
 }
 
 
@@ -520,13 +506,12 @@ bool BitStream::get() {
 size_t BitStream::getBits(size_t n) {
     if (!n) return 0;
     size_t res{};
-    size_t idx{1};
     while (y < buf.size() && n) {
         res |= (buf[y] & (8 - i));
         inc(), n -= 1;
     } 
     if (n > 0) {
-        size_t sz {n/8 + 1};
+        size_t sz {(n >> 3) + 1};
         if (buf.size() < sz) buf.resize(sz);
         is >> buf;
         y = i = 0;
@@ -535,6 +520,25 @@ size_t BitStream::getBits(size_t n) {
             inc(), n -= 1;
         }
     }
+    return res;
+}
+
+size_t BitStream::lookAhead(size_t n) {
+    if (!n) return 0;  
+    size_t res{};
+    if (buf.size() - y < (n >> 3) + 1) {
+        std::vector<char> tmp((n >> 3) + 1 - buf.size() + y); 
+        is >> tmp;
+        buf.resize(buf.size() + tmp.size());
+        std::copy(buf.begin() + y, buf.end(), tmp.begin());
+    }
+    auto _i{i}, _y{y};
+    while (n) {
+        res |= (buf[y] & (8 - i));
+        inc(), n -= 1;
+    }
+    y = _y;
+    i = _i;
     return res;
 }
 
@@ -625,20 +629,28 @@ inline size_t bitSub(Cnt bs, size_t from, size_t to) {
 
 FrameHeader::FrameHeader(uint32_t frame) : frame {frame} {
     using namespace std;
+    static pair<bool, bool> mode[] = {{false, false}, 
+        {true, false}, {false, true}, {true, true}};
     bitset<32> bs {frame};
     reverse(bs);
     cout << "FRAME BITS: ";
     for (int i = 0; i < 32; ++i) {
         cout << bs[i];
+        if (!((i + 1) & 0b111)) cout << ' ';
     }
+    reverse(bs);
     cout << endl;
-    mpeg = fH::MPEG[bitSub(bs, 18, 19)];
-    layer = fH::Layer[bitSub(bs, 16, 17)];
-    bitrate = fH::bitrate[2][bitSub(bs, 11, 14) - 1];
-    sampling_rate = fH::sampling_rate[0][bitSub(bs, 21, 22)];
-    padding_bit = bs[23];
-    channel_mode  = fH::channel_mode[bitSub(bs, 25, 26)];
+    mpeg = fH::MPEG[bitSub(bs, 19, 20)];
+    layer = fH::Layer[bitSub(bs, 17, 18)];
+    crc = bs[16];
+    bitrate = fH::bitrate[2][bitSub(bs, 12, 15) - 1];
+    sampling_rate = fH::sampling_rate[0][bitSub(bs, 10, 11)];
+    padding_bit = bs[9];
+    channel_mode  = fH::channel_mode[bitSub(bs, 6, 7)];
     auto flb = (144 * 1000 * bitrate)/sampling_rate + padding_bit;
+    auto modebits = bitSub(bs, 4, 5);
+    is = mode[modebits].first;
+    ms = mode[modebits].second;
 }
 
 size_t FrameHeader::length() {

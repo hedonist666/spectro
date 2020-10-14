@@ -65,6 +65,7 @@ struct BitStream {
     std::istream& is;
     BitStream(std::istream& is);
     size_t getBits(size_t);
+    size_t lookAhead(size_t);
     bool get();
     inline size_t inc();
 };
@@ -78,6 +79,8 @@ struct FrameHeader {
     uint8_t padding_bit;
     ChannelMode channel_mode;
     size_t frameCount;
+    bool is, ms;
+    bool crc;
     FrameHeader(uint32_t frame);
     size_t length();
     bool mono();
@@ -159,18 +162,17 @@ struct MP3DataChunk {
 };
 
 struct MP3Data {
-    bool dvach;     
     size_t sampleRate;
     ChannelMode channelMode;
     std::pair<bool, bool> someFlags;
-    union {
-        std::tuple<MP3DataChunk, MP3DataChunk> ch1;
-        std::tuple<MP3DataChunk, MP3DataChunk, MP3DataChunk, MP3DataChunk> ch2;
-    } ch;
+    std::variant<
+        std::tuple<MP3DataChunk, MP3DataChunk>,
+        std::tuple<MP3DataChunk, MP3DataChunk, MP3DataChunk, MP3DataChunk>
+    > ch;
 };
 
 LogicalFrame unpackFrame(BitStream& bs);
-MP3Data parseMainData(LogicalFrame& lf);
+MP3Data parseMainData(BitStream& bs, LogicalFrame& lf);
 
 
 struct Mp3 {
@@ -281,6 +283,15 @@ template<typename T>
 inline size_t toInt(std::vector<T>&);
 std::pair<Huffman::Tree<std::pair<size_t, size_t>>, size_t> huffmanDecodeTable(size_t);
 Huffman::Tree<std::tuple<size_t, size_t, size_t, size_t>> huffmanDecodeTableQuad(size_t);
+
+template <typename CharT, typename Traits = std::char_traits<CharT>>
+struct vectorwrap : public std::basic_streambuf<CharT, Traits> {
+    vectorwrap(std::vector<CharT>& v) {
+        setg(v.data(), v.data() + v.size());
+    }
+};
+
+
 
 
 #define DEBUG(x) cout << #x << ": "<< x << endl;
