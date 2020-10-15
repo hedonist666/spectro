@@ -66,6 +66,8 @@ struct BitStream {
     BitStream(std::istream& is);
     size_t getBits(size_t);
     size_t lookAhead(size_t);
+    std::vector<char> getByteString(size_t);
+    std::vector<char> lookAheadBytes(size_t);
     bool get();
     inline size_t inc();
 };
@@ -84,6 +86,7 @@ struct FrameHeader {
     FrameHeader(uint32_t frame);
     size_t length();
     bool mono();
+    bool sane();
 };
 
 struct HuffmanData {

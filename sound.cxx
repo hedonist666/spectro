@@ -3,8 +3,9 @@
 
 int main() {
     using namespace std;
-    Mp3 track("./materials/sad.mp3");
-    cout << track.trackLength();
+    cout << "compiled" << endl;
+    //Mp3 track("./materials/sad.mp3");
+    //cout << track.trackLength();
 }
 
 
@@ -51,7 +52,7 @@ MP3Data parseMainData(BitStream& bs, LogicalFrame& lf) {
 }
 
 
-LogicalFrame unpackFrame(BitStream& bs) {
+LogicalFrame unpackFrame(BitStream& bs, std::vector<char> buffer) {
     auto headerBits = bs.getBits(32);    
     FrameHeader* header = new FrameHeader(headerBits);
     size_t lengthcrc = header->crc ? 2 : 0;
@@ -60,8 +61,17 @@ LogicalFrame unpackFrame(BitStream& bs) {
     bs.getBits(32);
     bs.getBits(lengthcrc << 3);
     SideInfo* side = new SideInfo(bs, *header);
-    auto main = bs.getBits(lengthframe - 4 - lengthcrc - lengthside); 
+    auto main = bs.getByteString(lengthframe - 4 - lengthcrc - lengthside); 
     auto peek = bs.lookAhead(8);    
+    size_t n{buffer.size()};
+    buffer.resize(buffer.size() + main.size()); 
+    std::copy(buffer.begin() + n, buffer.end(), main.begin());
+    size_t dataptr{};
+    FrameHeader* tmpheader = new FrameHeader(peek);
+    if (tmpheader.sane()) {
+        dataptr = tmpheader.crc ? 6 : 4;    
+        
+    }
 }
 
 
@@ -503,6 +513,25 @@ bool BitStream::get() {
     return getBits(1);
 }
 
+std::vector<char> BitStream::getByteString(size_t n) {
+    if (i) {
+        i = 0;
+        y += 1;
+    }
+    std::vector<char> res(n);
+    if (n > buf.size() - y) {
+        std::copy(res.begin(), res.begin() + buf.size() - y, buf.begin() + y);
+        n -= buf.size() - y;
+        if (buf.size() < n) buf.resize(n);
+        is >> buf;
+        std::copy(res.begin() + buf.size() - y, res.end(), buf.begin());
+    }
+    else {
+        std::copy(res.begin(), res.end(), buf.begin() + y);
+    }
+    return res;
+}
+
 size_t BitStream::getBits(size_t n) {
     if (!n) return 0;
     size_t res{};
@@ -521,6 +550,10 @@ size_t BitStream::getBits(size_t n) {
         }
     }
     return res;
+}
+
+std::vector<char> BitStream::lookAheadBytes(size_t) {
+     
 }
 
 size_t BitStream::lookAhead(size_t n) {
@@ -544,6 +577,10 @@ size_t BitStream::lookAhead(size_t n) {
 
 bool FrameHeader::mono() {
     return channel_mode == ChannelMode::Mono;
+}
+
+bool FrameHeader::sane() {
+    return (mpeg == "MPEG-1" && layer == "Layer III");
 }
 
 
